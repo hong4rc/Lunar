@@ -4,101 +4,75 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.os.Handler;
-import android.os.Message;
 import android.util.AttributeSet;
-import android.view.View;
 import android.widget.TextView;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.Calendar;
 
 /**
- * Created by ASUS on 11/17/2016.
+ * Created by Hong.
  */
 
 public class AmLich extends TextView {
-    private Handler mHandler = new
-            Handler(){
-        @Override
-        public void handleMessage(Message message) {
-            AmLich.this.updateAmLich();
-        }
-    };
+    private static final int TIME_ZONE =7;
     private BroadcastReceiver mIntentReceiver = new BroadcastReceiver(){
         public void onReceive(Context object, Intent intent) {
             String action = intent.getAction();
-            if ("android.intent.action.TIME_TICK".equals(action) || "android.intent.action.TIME_SET".equals(action) || "android.intent.action.TIMEZONE_CHANGED".equals(action)) {
-                AmLich.this.mHandler.sendEmptyMessage(0);
+            if (Intent.ACTION_TIME_TICK.equals(action)
+                    || Intent.ACTION_TIME_CHANGED.equals(action)
+                    || Intent.ACTION_TIMEZONE_CHANGED.equals(action)
+                    || Intent.ACTION_LOCALE_CHANGED.equals(action)) {
+                updateAmLich();
             }
-            if (!"android.intent.action.LOCALE_CHANGED".equals(action)) {
-                return;
-            }
-            AmLich.this.mHandler.sendEmptyMessage(0);
         }
     };
-    private Context mContext;
 
     public AmLich(Context context) {
-        super(context);
-        mContext=context;
+        this(context,null);
     }
 
     public AmLich(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        mContext=context;
+        this(context, attrs,0);
     }
 
     public AmLich(Context context, AttributeSet attrs, int defStyleAttr) {
         super(context, attrs, defStyleAttr);
-        mContext=context;
+        //somethings
     }
 
-    private void setUpdates(){
-
-        this.setText("aaa");
-
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction("android.intent.action.TIME_TICK");
-        intentFilter.addAction("android.intent.action.TIME_SET");
-        intentFilter.addAction("android.intent.action.TIMEZONE_CHANGED");
-        intentFilter.addAction("android.intent.action.LOCALE_CHANGED");
-        this.mContext.registerReceiver(this.mIntentReceiver, intentFilter, null, null);
-        this.updateAmLich();
-    }
     private void updateAmLich() {
-        int day = getday("dd");
-        int month = getday("MM");
-        int year = getday("yyyy");
+        Calendar cal = Calendar.getInstance();
+        int day   = cal.get(Calendar.DAY_OF_MONTH);
+        int month = cal.get(Calendar.MONTH) +1;
+        int year  = cal.get(Calendar.YEAR);
         this.setText(ConvertAmLich(day,month,year));
     }
     private String ConvertAmLich (int day,int month,int year){
         int lunarYear;
         int dayNumber = converAmLich(day, month, year);
         int k = (int) ((dayNumber - 2415021.076998695) / 29.530588853);
-        int dayStartMonth = getStartDay(k+1,7);
+        int dayStartMonth = getStartDay(k+1);
 
         //kiểm tra đã qua tháng chưa
         if(dayStartMonth >dayNumber){
-            dayStartMonth=getStartDay(k,7);
+            dayStartMonth=getStartDay(k);
         }
-        int month11 = getLunarMonth11(year, 7);
+        int month11 = getLunarMonth11(year);
         int month11C =month11;
         if(month11>=dayStartMonth){
             lunarYear =year;
-            month11 = getLunarMonth11(year-1, 7);
+            month11 = getLunarMonth11(year-1);
         } else {
             lunarYear =year+1;
-            month11C = getLunarMonth11(year+1, 7);
+            month11C = getLunarMonth11(year+1);
         }
         int lunarDay = dayNumber-dayStartMonth +1;
         int diff = (dayStartMonth -month11)/29;
-        int lunarLeap =0;
-        int lunarMonth =diff+11;
+        int lunarMonth = diff + 11;
         if(month11C-month11 >365){
-            int cc =getLeapMonthOffset(month11, 7);
+            int cc =getLeapMonthOffset(month11);
             if ((diff>=cc)){
-                lunarLeap=1;
+                lunarMonth = diff + 10;
             }
         }
         if (lunarMonth >12){
@@ -107,26 +81,26 @@ public class AmLich extends TextView {
         if ((lunarMonth>=11 && diff<4)){
             lunarYear-=1;
         }
-        return "["+lunarDay+"/"+ lunarMonth+"]";
-        //return "["+lunarDay+"/"+ lunarMonth+"]  "+ lunarYear;
-        //you can add aray to get name of year.
+        return "["+lunarDay+"/"+ lunarMonth+"] " + convYear(lunarYear);
     }
-
-    private int getLeapMonthOffset(int a11, int timezone) {
-        int k,i,last = 0,arc;;
-        double a;
+    private String convYear(int yearLunar){
+        String can[]= {"Canh","Tân","Nhâm","Quý","Giáp","Ất","Bính","Đinh","Mậu","Kỉ"};
+        String chi[]={"Thân","Dậu","Tuất","Hợi","Tí","Sửu","Dần","Mão","Thìn","Tị","Ngọ","Mùi"};
+        return can[yearLunar%10]+" "+chi[yearLunar%12];
+    }
+    
+    private int getLeapMonthOffset(int a11) {
+        int k,i,last,arc;
         k = (int)((a11 - 2415021.076998695) / 29.530588853 + 0.5);
         i = 1; // We start with the month following lunar month 11
-        arc = getSunLongitude(getStartDay(k+i, 7), 7);
+        arc = getSunLongitude(getStartDay(k+i));
         do {
             last = arc;
             i++;
-            arc = getSunLongitude(getStartDay(k+i, 7), 7);
+            arc = getSunLongitude(getStartDay(k+i));
         } while (arc != last && i < 14);
         return i-1;
     }
-
-    ;
     private int  converAmLich(int day,int month,int year) {
         int y, jd, m;
         y = -(14 - month) / 12;
@@ -138,20 +112,19 @@ public class AmLich extends TextView {
         }
         return jd;
     }
-    private int getLunarMonth11(int yy,int timezone){
+    private int getLunarMonth11(int yy){
         int off = converAmLich(31, 12, yy) - 2415021;
         int k = (int)(off / 29.530588853);
-        int nm = getStartDay(k, timezone);
-        int sunLong = getSunLongitude(nm, timezone); // sun longitude at local midnight
+        int nm = getStartDay(k);
+        int sunLong = getSunLongitude(nm); // sun longitude at local midnight
         if (sunLong >= 9) {
-            nm = getStartDay(k-1, timezone);
+            nm = getStartDay(k-1);
         }
         return nm;
     }
-
-    private int getSunLongitude(int jdn, int timezone) {
+    private int getSunLongitude(int jdn) {
         double T,T2,dr,M,L0,DL,L;
-        T = (jdn - 2451545.5 - timezone/24.0) / 36525; // Time in Julian centuries from 2000-01-01 12:00:00 GMT
+        T = (jdn - 2451545.5 - TIME_ZONE/24.0) / 36525; // Time in Julian centuries from 2000-01-01 12:00:00 GMT
         T2 = T*T;
         dr = Math.PI/180; // degree to radian
         M = 357.52910 + 35999.05030*T - 0.0001559*T2 - 0.00000048*T*T2; // mean anomaly, degree
@@ -163,9 +136,8 @@ public class AmLich extends TextView {
         L = L - Math.PI*2*((int)(L/(Math.PI*2))); // Normalize to (0, 2*PI)
         return (int)(L / Math.PI * 6);
     }
-
-    private int getStartDay(int k,int timezone){
-        double dr,Jd1,M,Mpr,F,C1,deltat,JdNew;
+    private int getStartDay(int k){
+        double dr,Jd1,M,Mpr,F,C1,delta,JdNew;
         double T =k/1236.85;
         double T2 = T*T;
         double T3 = T2*T;
@@ -183,45 +155,28 @@ public class AmLich extends TextView {
         C1 = C1 - 0.0004*Math.sin(dr*(2*F-M)) - 0.0006*Math.sin(dr*(2*F+Mpr));
         C1 = C1 + 0.0010*Math.sin(dr*(2*F-Mpr)) + 0.0005*Math.sin(dr*(2*Mpr+M));
         if (T < -11) {
-            deltat= 0.001 + 0.000839*T + 0.0002261*T2 - 0.00000845*T3 - 0.000000081*T*T3;
+            delta= 0.001 + 0.000839*T + 0.0002261*T2 - 0.00000845*T3 - 0.000000081*T*T3;
         } else {
-            deltat= -0.000278 + 0.000265*T + 0.000262*T2;
-        };
-        JdNew = Jd1 + C1 - deltat;
-        return (int)(JdNew + 0.5 + timezone/24.0);
-    }
-
-    private int getday(String st){
-        SimpleDateFormat sdf = new SimpleDateFormat(st);
-        Date d = new Date();
-        st = sdf.format(d);
-        int num=0;
-        try {
-            num = Integer.parseInt(st) ;
-        } catch(NumberFormatException nfe) {
-
+            delta= -0.000278 + 0.000265*T + 0.000262*T2;
         }
-        return num;
+        JdNew = Jd1 + C1 - delta;
+        return (int)(JdNew + 0.5 + TIME_ZONE/24.0);
     }
+    
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
-        this.setUpdates();
+        
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(Intent.ACTION_TIME_CHANGED);
+        filter.addAction(Intent.ACTION_TIMEZONE_CHANGED);
+        filter.addAction(Intent.ACTION_LOCALE_CHANGED);
+        getContext().registerReceiver(mIntentReceiver, filter, null, null);
+        updateAmLich();
     }
     @Override
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
-        this.setUpdates();
+        getContext().unregisterReceiver(mIntentReceiver);
     }
-    @Override
-    protected void onVisibilityChanged(View view, int n) {
-        super.onVisibilityChanged(view, n);
-        this.setUpdates();
-    }
-    @Override
-    protected void onWindowVisibilityChanged(int n) {
-        super.onWindowVisibilityChanged(n);
-        this.setUpdates();
-    }
-
 }
